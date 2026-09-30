@@ -4,7 +4,7 @@ Interactive charts comparing current onshore wind turbine models by rotor diamet
 
 ## 📊 View the charts
 
-**[Open the interactive charts →](https://windletterdata.github.io/windletter/Onshore%20Wind%20Turbine%20Models.html)**
+**[Open the interactive charts →](https://windletterdata.github.io/windletter/OnshoreWTGs_Chart.html)**
 
 - **Rated power vs rotor diameter**: where each model sits in MW for a given rotor size.
 - **Specific power vs rotor diameter**: rated power per swept area (W/m²), with shaded bands for indicative IEC wind classes.
