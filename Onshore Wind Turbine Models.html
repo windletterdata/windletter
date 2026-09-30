@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Onshore Turbine Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans+Extra+Condensed:wght@700;800&family=Fira+Sans:wght@400;500;600&display=swap">
+<style>
+:root{--paper:#F2F3F1;--sheet:#FFFFFF;--ink:#111;--ink2:#3A3D3B;--muted:#6A6E6B;--rule:#D8DAD6}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:"Fira Sans",system-ui,sans-serif;padding-inline:16px;padding-block:24px 32px;margin:0}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header h1{font-family:"Fira Sans Extra Condensed","Arial Narrow",sans-serif;font-weight:800;font-size:clamp(28px,4vw,40px);line-height:1;margin:0}
+header p{margin:6px 0 0;color:var(--ink2);font-size:15px;max-width:70ch}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13.5px;color:var(--ink2)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:50%;display:inline-block}
+.card{background:var(--sheet);border:1px solid var(--rule);padding:18px 18px 12px}
+.card h2{font-family:"Fira Sans Extra Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:24px;margin:0 0 2px}
+.card .sub{font-size:13px;color:var(--muted);margin:0 0 10px}
+.cv{position:relative;height:clamp(380px,62vw,600px)}
+.note{font-size:12.5px;color:var(--muted);margin:0;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Onshore wind turbines: rotor, rating and specific power</h1>
+    <p>29 onshore models from 9 manufacturers with rotors of 145 m and above. Each dot uses its manufacturer's corporate colour.</p>
+  </header>
+  <div class="legend" id="legend"></div>
+
+  <section class="card">
+    <h2>Rated power vs rotor diameter</h2>
+    <p class="sub">MW against rotor diameter (m)</p>
+    <div class="cv"><canvas id="cPow" aria-label="Scatter chart of rated power versus rotor diameter"></canvas></div>
+  </section>
+
+  <section class="card">
+    <h2>Specific power vs rotor diameter</h2>
+    <p class="sub">Rated power / swept area (W/m²). Shaded bands show indicative IEC wind classes.</p>
+    <div class="cv"><canvas id="cDen" aria-label="Scatter chart of specific power versus rotor diameter with IEC class bands"></canvas></div>
+  </section>
+
+  <p class="note">Specific power = rated power / (π·D²/4). IEC bands are indicative, not normative: Class I &gt; 350 W/m² (&gt; 8.5 m/s), Class II 280–350 W/m² (7.5–8.5 m/s), Class II–III 230–280 W/m² (6.5–7.5 m/s), Class III/S &lt; 230 W/m² (&lt; 6.5 m/s). Data: manufacturers. Chart: Windletter.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script>
+Chart.register(ChartDataLabels);
+const CM={Vestas:'#003F8A',SG:'#4A2076',Nordex:'#FF0000',GE:'#005E60',Suzlon:'#00978D',Enercon:'#007A70',Envision:'#1A73E8',MingYang:'#00486F',Goldwind:'#0A5CA8'};
+const NAME={Vestas:'Vestas',SG:'Siemens Gamesa',Nordex:'Nordex',GE:'GE Vernova',Suzlon:'Suzlon',Enercon:'Enercon',Envision:'Envision',MingYang:'Ming Yang',Goldwind:'Goldwind'};
+// [label, MW, rotor, brand, power-chart label align, density-chart label align]
+const RAW=[
+ ['V163-4.5',4.5,163,'Vestas','right','right'],['V150-4.5',4.5,150,'Vestas','top','top'],['V150-4.2',4.2,150,'Vestas','bottom','bottom'],
+ ['V150-6.0',6.0,150,'Vestas','top','top'],['V172-7.2',7.2,172,'Vestas','top','right'],['V162-7.2',7.2,162,'Vestas','top','top'],
+ ['V162-6.2',6.2,162,'Vestas','left','left'],['V182-7.2',7.2,182,'Vestas','right','right'],
+ ['SG 7.0-170',7.0,170,'SG','bottom','bottom'],['SG 5.0-145',5.0,145,'SG','top','top'],
+ ['N175/7.3',7.3,175,'Nordex','top','bottom'],['N163/7.0',7.0,163,'Nordex','bottom','top'],['N163/5.9',5.9,163,'Nordex','bottom','left'],['N193/7.3',7.3,193,'Nordex','top','top'],
+ ['S175-5.0',5.0,175,'Suzlon','bottom','right'],['S163-6.3',6.3,163,'Suzlon','right','right'],
+ ['GE 6.1-158',6.1,158,'GE','bottom','top'],['GE 6.0-164',6.0,164,'GE','top','right'],
+ ['E-175 EP5',7.0,175,'Enercon','bottom','right'],
+ ['EN-175/8.0',8.0,175,'Envision','left','left'],['EN-182/8.0',8.0,182,'Envision','top','top'],['EN-171/6.5',6.5,171,'Envision','left','bottom'],
+ ['MySE 6.25-172',6.25,172,'MingYang','top','bottom'],['MySE 6.25-182',6.25,182,'MingYang','bottom','right'],['MySE 8.0-175',8.0,175,'MingYang','top','top'],
+ ['GW165-6.0',6.0,165,'Goldwind','right','bottom'],['GWH170-7.2',7.2,170,'Goldwind','left','top'],['GWH175-7.8',7.8,175,'Goldwind','left','right'],['GWH182-8.0',8.0,182,'Goldwind','bottom','bottom'],
+];
+const dens=(mw,d)=>mw*1e6/(Math.PI*(d/2)**2);
+const T=RAW.map(([label,mw,d,brand,aP,aD])=>({label,mw,d,brand,aP,aD,w:dens(mw,d)}));
+const brands=Object.keys(CM);
+document.getElementById('legend').innerHTML=brands.map(b=>`<span><i style="background:${CM[b]}"></i>${NAME[b]}</span>`).join('');
+
+const iecZones={id:'iecZones',beforeDraw(ch){
+  if(!ch.options.plugins.iecZones) return;
+  const {ctx,chartArea:{left,right,top,bottom},scales:{y}}=ch;
+  [[350,450,'rgba(226,75,74,.09)','#C8423F','IEC I · > 8.5 m/s'],[280,350,'rgba(239,159,39,.10)','#B8760F','IEC II · 7.5–8.5 m/s'],
+   [230,280,'rgba(29,158,117,.09)','#16805F','IEC II–III · 6.5–7.5 m/s'],[150,230,'rgba(55,138,221,.09)','#2D6FB3','IEC III/S · < 6.5 m/s']]
+  .forEach(([a,b,f,c,l])=>{
+    const y1=Math.max(y.getPixelForValue(b),top), y2=Math.min(y.getPixelForValue(a),bottom); if(y2<=y1) return;
+    ctx.save(); ctx.fillStyle=f; ctx.fillRect(left,y1,right-left,y2-y1);
+    if(y.getPixelForValue(a)<bottom){ctx.strokeStyle=c;ctx.globalAlpha=.45;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(left,y2);ctx.lineTo(right,y2);ctx.stroke();}
+    ctx.globalAlpha=1; ctx.setLineDash([]); ctx.fillStyle=c; ctx.font='600 11.5px "Fira Sans", system-ui, sans-serif'; ctx.textAlign='left';
+    ctx.fillText(l,left+8,y1+15); ctx.restore();
+  });
+}};
+Chart.register(iecZones);
+
+function make(id,isDen){
+  const datasets=brands.map(b=>{
+    const pts=T.filter(t=>t.brand===b);
+    return {label:NAME[b],data:pts.map(t=>({x:t.d,y:isDen?+t.w.toFixed(1):t.mw,t})),
+      backgroundColor:CM[b],borderColor:'#fff',borderWidth:1.5,pointRadius:7,pointHoverRadius:9,
+      datalabels:{color:CM[b],align:c=>isDen?c.dataset.data[c.dataIndex].t.aD:c.dataset.data[c.dataIndex].t.aP,offset:6,
+        font:{family:'"Fira Sans", system-ui, sans-serif',size:11,weight:600},
+        textStrokeColor:'#fff',textStrokeWidth:3,formatter:v=>v.t.label}};
+  });
+  new Chart(document.getElementById(id),{type:'scatter',data:{datasets},
+    options:{responsive:true,maintainAspectRatio:false,layout:{padding:{right:12,top:8}},
+      plugins:{legend:{display:false},iecZones:isDen,
+        tooltip:{callbacks:{label:c=>{const t=c.raw.t;return `${t.label} (${NAME[t.brand]}): ${t.mw} MW · ${t.d} m · ${Math.round(t.w)} W/m²`;}}}},
+      scales:{
+        x:{min:140,max:200,title:{display:true,text:'Rotor diameter (m)',color:'#3A3D3B',font:{size:13,weight:500}},ticks:{stepSize:10,color:'#6A6E6B'},grid:{color:'rgba(17,17,17,.07)'}},
+        y:{min:isDen?190:4,max:isDen?370:8.5,title:{display:true,text:isDen?'Specific power (W/m²)':'Rated power (MW)',color:'#3A3D3B',font:{size:13,weight:500}},
+           ticks:{color:'#6A6E6B',stepSize:isDen?20:0.5},grid:{color:'rgba(17,17,17,.07)'}}
+      }}});
+}
+make('cPow',false); make('cDen',true);
+</script>
+</body>
+</html>
